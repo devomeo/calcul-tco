@@ -165,15 +165,77 @@
   }
 
   const Steps = [
-    { key: 'type', label: opts.i18nType || 'Type de véhicule' },
-    { key: 'acquisition', label: opts.i18nAcq || 'Mode d\'acquisition' },
-    { key: 'usage', label: opts.i18nUsage || 'Usage' },
-    { key: 'energy', label: opts.i18nEnergy || 'Énergie' },
-    { key: 'recharge', label: opts.i18nRecharge || 'Recharge & bornes' },
-    { key: 'costs', label: opts.i18nCosts || 'Coûts fixes' },
-    { key: 'fiscal', label: opts.i18nFiscal || 'Fiscalité' },
-    { key: 'review', label: opts.i18nReview || 'Résumé' }
+    {
+      key: 'type',
+      label: opts.i18nType || 'Type de véhicule',
+      summary: opts.i18nTypeSummary || 'Sélectionnez la motorisation et, si besoin, un preset pour démarrer plus vite.'
+    },
+    {
+      key: 'acquisition',
+      label: opts.i18nAcq || 'Mode d\'acquisition',
+      summary: opts.i18nAcqSummary || 'Précisez comment le véhicule est financé afin de calculer loyers, prix et frais associés.'
+    },
+    {
+      key: 'usage',
+      label: opts.i18nUsage || 'Usage',
+      summary: opts.i18nUsageSummary || 'Renseignez vos kilomètres annuels et la durée d\'utilisation pour mesurer les coûts dans le temps.'
+    },
+    {
+      key: 'energy',
+      label: opts.i18nEnergy || 'Énergie',
+      summary: opts.i18nEnergySummary || 'Indiquez les consommations et tarifs d\'énergie pour estimer vos dépenses carburant/électricité.'
+    },
+    {
+      key: 'recharge',
+      label: opts.i18nRecharge || 'Recharge & bornes',
+      summary: opts.i18nRechargeSummary || 'Définissez votre infrastructure de recharge pour intégrer amortissement et maintenance.'
+    },
+    {
+      key: 'costs',
+      label: opts.i18nCosts || 'Coûts fixes',
+      summary: opts.i18nCostsSummary || 'Complétez les dépenses annuelles récurrentes : entretien, pneus, assurance.'
+    },
+    {
+      key: 'fiscal',
+      label: opts.i18nFiscal || 'Fiscalité',
+      summary: opts.i18nFiscalSummary || 'Ajustez la fiscalité : TVA récupérable, bonus/malus et charges non déductibles.'
+    },
+    {
+      key: 'review',
+      label: opts.i18nReview || 'Résumé',
+      summary: opts.i18nReviewSummary || 'Passez en revue vos données avant de lancer le calcul du TCO.'
+    }
   ];
+
+  function escapeHTML(str){
+    return (str || '').toString()
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function escapeAttr(str){
+    return escapeHTML(str)
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function buildTooltip(text){
+    if(!text){ return ''; }
+    const safe = escapeAttr(text);
+    return `<span class="mba-tco__tooltip" tabindex="0" role="note" aria-label="${safe}" data-tooltip="${safe}">?</span>`;
+  }
+
+  function buildLabel(text, tooltip){
+    const safeText = escapeHTML(text);
+    return `<span class="mba-tco__label-text">${safeText}</span>${buildTooltip(tooltip)}`;
+  }
+
+  function renderStepHelper(key, fallback){
+    const message = opts[key] || fallback;
+    if(!message){ return ''; }
+    return `<p class="mba-tco__helper">${escapeHTML(message)}</p>`;
+  }
 
   function renderCalculator(el){
     if(!el.__mbaState){
@@ -234,6 +296,20 @@
       fleetWrapper.appendChild(fleetInput);
       el.appendChild(fleetWrapper);
     }
+
+    const stepMeta = Steps[state.step] || {};
+    const context = document.createElement('div');
+    context.className = 'mba-tco__context';
+    context.innerHTML = `
+      <div class="mba-tco__context-header">
+        <span class="mba-tco__context-step">${state.step + 1}/${Steps.length}</span>
+        <div class="mba-tco__context-copy">
+          <h2>${escapeHTML(stepMeta.label || '')}</h2>
+          <p>${escapeHTML(stepMeta.summary || '')}</p>
+        </div>
+      </div>
+    `;
+    el.appendChild(context);
 
     const cards = document.createElement('div');
     cards.className = 'mba-tco__cards';
@@ -336,7 +412,8 @@
       return `<button type="button" class="mba-tco__button ${active ? '' : 'mba-tco__button--ghost'}" data-action="set-type" data-value="${type.value}" aria-pressed="${active}">${type.label}</button>`;
     }).join('');
     const presetSelect = renderPresetSelect(vehicle, index, state);
-    return header + presetSelect + `<div class="mba-tco__status">${opts.i18nChooseType || 'Choisissez le type de motorisation.'}</div><div class="mba-tco__range-group">${buttons}</div>`;
+    const helper = renderStepHelper('i18nTypeHelper', opts.i18nChooseType || 'Choisissez le type de motorisation.');
+    return header + presetSelect + helper + `<div class="mba-tco__range-group">${buttons}</div>`;
   }
 
   function renderPresetSelect(vehicle, index, state){
@@ -348,36 +425,40 @@
     list.forEach(item => {
       options.push(`<option value="${item.id}" ${vehicle.id === item.id ? 'selected' : ''}>${item.label}</option>`);
     });
-    return `<div class="mba-tco__field"><label for="mba-tco-preset-${index}">${opts.i18nPreset || 'Preset'}</label><select id="mba-tco-preset-${index}" data-action="preset" data-index="${index}">${options.join('')}</select></div>`;
+    return `<div class="mba-tco__field"><label class="mba-tco__label" for="mba-tco-preset-${index}">${buildLabel(opts.i18nPreset || 'Preset')}</label><select id="mba-tco-preset-${index}" data-action="preset" data-index="${index}">${options.join('')}</select></div>`;
   }
 
   function renderAcquisitionStep(vehicle){
     const acq = vehicle.acquisition;
+    const helper = renderStepHelper('i18nAcqHelper', 'Sélectionnez achat, LLD ou LOA et renseignez les montants associés.');
     return `
       <header><h3>${vehicle.label || opts.i18nVehicle || 'Véhicule'}</h3></header>
+      ${helper}
       <div class="mba-tco__field">
-        <label>${opts.i18nAcqMode || 'Mode d\'acquisition'}</label>
+        <label class="mba-tco__label">${buildLabel(opts.i18nAcqMode || 'Mode d\'acquisition')}</label>
         <select data-action="acq-mode">
           <option value="achat" ${acq.mode === 'achat' ? 'selected' : ''}>${opts.i18nBuy || 'Achat'}</option>
           <option value="lld" ${acq.mode === 'lld' ? 'selected' : ''}>LLD</option>
           <option value="loa" ${acq.mode === 'loa' ? 'selected' : ''}>LOA</option>
         </select>
       </div>
-      <div class="mba-tco__field"><label>${opts.i18nPrice || 'Prix TTC'}</label><input type="number" data-action="acq-price" value="${acq.prix_ttc || 0}" step="100"></div>
-      <div class="mba-tco__field"><label>${opts.i18nVR || 'Valeur résiduelle'}</label><input type="number" data-action="acq-vr" value="${acq.valeur_residuelle || 0}" step="100"></div>
-      <div class="mba-tco__field"><label>${opts.i18nRent || 'Loyer mensuel'}</label><input type="number" data-action="acq-rent" value="${acq.loyers_mensuels || 0}" step="10"></div>
-      <div class="mba-tco__field"><label>${opts.i18nFees || 'Frais entrée/sortie'}</label><input type="number" data-action="acq-fees" value="${acq.frais_entree_sortie || 0}" step="10"></div>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nPrice || 'Prix TTC')}</label><input type="number" data-action="acq-price" value="${acq.prix_ttc || 0}" step="100"></div>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nVR || 'Valeur résiduelle', opts.tipResidual || 'Montant estimé de revente en fin de période.')}</label><input type="number" data-action="acq-vr" value="${acq.valeur_residuelle || 0}" step="100"></div>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nRent || 'Loyer mensuel', opts.tipRent || 'Mensualité contractuelle hors services inclus.')}</label><input type="number" data-action="acq-rent" value="${acq.loyers_mensuels || 0}" step="10"></div>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nFees || 'Frais entrée/sortie', opts.tipFees || 'Frais de mise en service ou de restitution liés au contrat.')}</label><input type="number" data-action="acq-fees" value="${acq.frais_entree_sortie || 0}" step="10"></div>
       <div class="mba-tco__field"><label><input type="checkbox" data-action="acq-maint" ${acq.entretien_inclus ? 'checked' : ''}> ${opts.i18nMaintenance || 'Entretien inclus dans le contrat'}</label></div>
     `;
   }
 
   function renderUsageStep(vehicle){
     const usage = vehicle.usage;
+    const helper = renderStepHelper('i18nUsageHelper', 'Renseignez la durée d\'utilisation et la répartition des parcours.');
     return `
       <header><h3>${vehicle.label || 'Véhicule'}</h3></header>
-      <div class="mba-tco__field"><label>${opts.i18nKm || 'Kilométrage annuel'}</label><input type="number" data-action="usage-km" value="${usage.km_annuel}" step="1000"></div>
-      <div class="mba-tco__field"><label>${opts.i18nDuration || 'Durée (ans)'}</label><input type="number" min="2" max="6" data-action="usage-duration" value="${usage.duree}" step="1"></div>
-      <div class="mba-tco__field"><label>${opts.i18nMix || 'Répartition Urbain / Route / Autoroute (%)'}</label>
+      ${helper}
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nKm || 'Kilométrage annuel')}</label><input type="number" data-action="usage-km" value="${usage.km_annuel}" step="1000"></div>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nDuration || 'Durée (ans)')}</label><input type="number" min="2" max="6" data-action="usage-duration" value="${usage.duree}" step="1"></div>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nMix || 'Répartition Urbain / Route / Autoroute (%)', opts.tipUsageMix || 'Ajustez la part de chaque type de trajet, le total sera recalculé à 100 %.')}</label>
         <div class="mba-tco__range-group">
           ${renderMixInput('urbain', usage.repartition.urbain)}
           ${renderMixInput('route', usage.repartition.route)}
@@ -393,31 +474,33 @@
 
   function renderEnergyStep(vehicle){
     const e = vehicle.energie;
+    const helper = renderStepHelper('i18nEnergyHelper', 'Indiquez les consommations et prix de l\'énergie selon vos sites de recharge.');
     return `
       <header><h3>${vehicle.label || 'Véhicule'}</h3></header>
-      <div class="mba-tco__field"><label>${opts.i18nConso || 'Consommation (urbain L/100 ou kWh/100)'}</label>
+      ${helper}
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nConso || 'Consommation (urbain L/100 ou kWh/100)')}</label>
         <div class="mba-tco__range-group">
           ${renderEnergyInput('urbain', e.consommation.urbain)}
           ${renderEnergyInput('route', e.consommation.route)}
           ${renderEnergyInput('autoroute', e.consommation.autoroute)}
         </div>
       </div>
-      <div class="mba-tco__field"><label>${opts.i18nFuel || 'Prix carburant €/L'}</label><input type="number" data-action="prix-carburant" value="${e.prix_carburant}" step="0.01"></div>
-      <div class="mba-tco__field"><label>${opts.i18nElec || 'Prix électricité €/kWh'}</label>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nFuel || 'Prix carburant €/L')}</label><input type="number" data-action="prix-carburant" value="${e.prix_carburant}" step="0.01"></div>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nElec || 'Prix électricité €/kWh')}</label>
         <div class="mba-tco__range-group">
           ${renderElecInput('site', e.prix_electricite.site)}
           ${renderElecInput('home', e.prix_electricite.home)}
           ${renderElecInput('public', e.prix_electricite.public)}
         </div>
       </div>
-      <div class="mba-tco__field"><label>${opts.i18nElecMix || 'Mix recharge %'}</label>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nElecMix || 'Mix recharge %', opts.tipElecMix || 'Définissez la part de recharge sur site, à domicile et en public. Le total sera équilibré à 100 %.')}</label>
         <div class="mba-tco__range-group">
           ${renderMixElec('site', e.mix_elec.site)}
           ${renderMixElec('home', e.mix_elec.home)}
           ${renderMixElec('public', e.mix_elec.public)}
         </div>
       </div>
-      <div class="mba-tco__field"><label>${opts.i18nLoss || 'Coefficient pertes élec'}</label><input type="number" step="0.01" data-action="loss" value="${e.coefficient_pertes}"></div>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nLoss || 'Coefficient pertes élec', opts.tipLoss || 'Prend en compte les pertes de charge (kWh consommés vs délivrés).')}</label><input type="number" step="0.01" data-action="loss" value="${e.coefficient_pertes}"></div>
     `;
   }
 
@@ -434,46 +517,53 @@
   function renderRechargeStep(vehicle){
     const r = vehicle.recharge;
     if(vehicle.type !== 'bev' && vehicle.type !== 'phev'){
-      return `<header><h3>${vehicle.label || 'Véhicule'}</h3></header><p>${opts.i18nNoCharger || 'Pas de bornes nécessaires pour ce véhicule.'}</p>`;
+      return `<header><h3>${vehicle.label || 'Véhicule'}</h3></header><p class="mba-tco__helper">${opts.i18nNoCharger || 'Pas de bornes nécessaires pour ce véhicule.'}</p>`;
     }
+    const helper = renderStepHelper('i18nRechargeHelper', 'Renseignez les investissements et la maintenance liés aux bornes.');
     return `
       <header><h3>${vehicle.label || 'Véhicule'}</h3></header>
-      <div class="mba-tco__field"><label>${opts.i18nChargerCount || 'Nombre de bornes'}</label><input type="number" data-action="borne-nb" value="${r.borne_nb}" step="1"></div>
-      <div class="mba-tco__field"><label>${opts.i18nChargerCapex || 'CAPEX borne HT'}</label><input type="number" data-action="borne-capex" value="${r.prix_unitaire}" step="10"></div>
-      <div class="mba-tco__field"><label>${opts.i18nChargerMaint || 'Maintenance annuelle'}</label><input type="number" data-action="borne-maint" value="${r.maintenance_annuelle}" step="10"></div>
-      <div class="mba-tco__field"><label>${opts.i18nChargerSub || 'Subvention Advenir %'}</label><input type="number" data-action="borne-sub" value="${r.subvention_pct}" step="1"></div>
-      <div class="mba-tco__field"><label>${opts.i18nChargerRatio || 'Ratio véhicules / borne'}</label><input type="number" data-action="borne-ratio" value="${r.ratio_vehicule_borne}" step="1"></div>
-      <div class="mba-tco__field"><label>${opts.i18nChargerAmort || 'Durée amortissement (ans)'}</label><input type="number" data-action="borne-amort" value="${r.duree_amortissement}" step="1"></div>
+      ${helper}
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nChargerCount || 'Nombre de bornes')}</label><input type="number" data-action="borne-nb" value="${r.borne_nb}" step="1"></div>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nChargerCapex || 'CAPEX borne HT', opts.tipChargerCapex || 'Investissement unitaire hors taxes pour l\'installation d\'une borne.')}</label><input type="number" data-action="borne-capex" value="${r.prix_unitaire}" step="10"></div>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nChargerMaint || 'Maintenance annuelle', opts.tipChargerMaint || 'Coût annuel de maintenance, supervision et SAV de la borne.')}</label><input type="number" data-action="borne-maint" value="${r.maintenance_annuelle}" step="10"></div>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nChargerSub || 'Subvention Advenir %', opts.tipChargerSub || 'Pourcentage de subvention Advenir déduit du CAPEX admissible.')}</label><input type="number" data-action="borne-sub" value="${r.subvention_pct}" step="1"></div>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nChargerRatio || 'Ratio véhicules / borne', opts.tipChargerRatio || 'Nombre de véhicules desservis par une borne pour répartir les coûts.')}</label><input type="number" data-action="borne-ratio" value="${r.ratio_vehicule_borne}" step="1"></div>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nChargerAmort || 'Durée amortissement (ans)', opts.tipChargerAmort || 'Nombre d\'années utilisées pour amortir l\'investissement initial.')}</label><input type="number" data-action="borne-amort" value="${r.duree_amortissement}" step="1"></div>
     `;
   }
 
   function renderCostsStep(vehicle){
     const c = vehicle.couts;
+    const helper = renderStepHelper('i18nCostsHelper', 'Complétez les charges annuelles si elles ne sont pas déjà incluses ailleurs.');
     return `
       <header><h3>${vehicle.label || 'Véhicule'}</h3></header>
-      <div class="mba-tco__field"><label>${opts.i18nMaintenanceYear || 'Entretien annuel'}</label><input type="number" data-action="cout-entretien" value="${c.entretien_an}" step="10"></div>
-      <div class="mba-tco__field"><label>${opts.i18nTyres || 'Pneus annuel'}</label><input type="number" data-action="cout-pneus" value="${c.pneus_an}" step="10"></div>
-      <div class="mba-tco__field"><label>${opts.i18nInsurance || 'Assurance annuelle'}</label><input type="number" data-action="cout-assurance" value="${c.assurance_an}" step="10"></div>
+      ${helper}
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nMaintenanceYear || 'Entretien annuel')}</label><input type="number" data-action="cout-entretien" value="${c.entretien_an}" step="10"></div>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nTyres || 'Pneus annuel')}</label><input type="number" data-action="cout-pneus" value="${c.pneus_an}" step="10"></div>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nInsurance || 'Assurance annuelle')}</label><input type="number" data-action="cout-assurance" value="${c.assurance_an}" step="10"></div>
     `;
   }
 
   function renderFiscalStep(vehicle){
     const f = vehicle.fiscalite;
+    const helper = renderStepHelper('i18nFiscalHelper', 'Calibrez la fiscalité applicable à ce véhicule et les montants spécifiques.');
     return `
       <header><h3>${vehicle.label || 'Véhicule'}</h3></header>
-      <div class="mba-tco__field"><label>${opts.i18nTVA || 'TVA récupérable %'}</label><input type="number" data-action="fisc-tva" value="${f.tva_recup}" step="1"></div>
-      <div class="mba-tco__field"><label>${opts.i18nBonus || 'Bonus / Malus'}</label><input type="number" data-action="fisc-bonus" value="${f.bonus_malus}" step="10"></div>
-      <div class="mba-tco__field"><label>${opts.i18nAmort || 'Amortissements non déductibles'}</label><input type="number" data-action="fisc-amort" value="${f.amort_non_deductible}" step="10"></div>
-      <div class="mba-tco__field"><label>${opts.i18nOther || 'Autres charges fiscales'}</label><input type="number" data-action="fisc-divers" value="${f.divers || 0}" step="10"></div>
+      ${helper}
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nTVA || 'TVA récupérable %', opts.tipTVA || 'Pourcentage de TVA pouvant être récupéré sur le véhicule ou les loyers.')}</label><input type="number" data-action="fisc-tva" value="${f.tva_recup}" step="1"></div>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nBonus || 'Bonus / Malus', opts.tipBonus || 'Montant unique positif (bonus) ou négatif (malus) appliqué à l\'achat.')}</label><input type="number" data-action="fisc-bonus" value="${f.bonus_malus}" step="10"></div>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nAmort || 'Amortissements non déductibles', opts.tipAmort || 'Part des amortissements qui ne peut pas être déduite fiscalement sur la durée.')}</label><input type="number" data-action="fisc-amort" value="${f.amort_non_deductible}" step="10"></div>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nOther || 'Autres charges fiscales', opts.tipFiscOther || 'Taxe annuelle, TVS ou toute autre charge non incluse ailleurs.')}</label><input type="number" data-action="fisc-divers" value="${f.divers || 0}" step="10"></div>
       <div class="mba-tco__field"><label><input type="checkbox" data-action="fisc-aen-toggle" ${f.aen_inclure ? 'checked' : ''}> ${opts.i18nAenToggle || 'Inclure AEN dans le calcul'}</label></div>
-      <div class="mba-tco__field"><label>${opts.i18nAenAmount || 'Montant AEN annuel'}</label><input type="number" data-action="fisc-aen" value="${f.aen_annuel}" step="10"></div>
+      <div class="mba-tco__field"><label class="mba-tco__label">${buildLabel(opts.i18nAenAmount || 'Montant AEN annuel', opts.tipAENAmount || 'Montant annuel d\'Aide à l\'Électrification des flottes à inclure si activé.')}</label><input type="number" data-action="fisc-aen" value="${f.aen_annuel}" step="10"></div>
     `;
   }
 
   function renderReviewStep(vehicle, state){
+    const helper = renderStepHelper('i18nReviewHelper', 'Validez les données clés avant de lancer le calcul.');
     return `
       <header><h3>${vehicle.label || 'Véhicule'}</h3></header>
-      <p>${opts.i18nReviewText || 'Vérifiez vos informations avant de lancer le calcul.'}</p>
+      ${helper || `<p class="mba-tco__helper">${opts.i18nReviewText || 'Vérifiez vos informations avant de lancer le calcul.'}</p>`}
       <ul>
         <li>${vehicle.type.toUpperCase()} – ${vehicle.acquisition.mode.toUpperCase()}</li>
         <li>${vehicle.usage.km_annuel} km/an · ${vehicle.usage.duree} ans</li>
