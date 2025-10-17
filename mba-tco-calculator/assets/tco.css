@@ -71,6 +71,14 @@
   position: relative;
 }
 
+.mba-tco__step--disabled,
+.mba-tco__step[disabled] {
+  background: rgba(0,0,0,0.04);
+  color: rgba(0,0,0,0.35);
+  cursor: not-allowed;
+  border-color: rgba(0,0,0,0.05);
+}
+
 .mba-tco__step[aria-current="step"] {
   background: var(--mba-tco-primary, #003366);
   color: #fff;
