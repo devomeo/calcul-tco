@@ -11,6 +11,7 @@
     }
     const state = {
       step: 0,
+      maxStep: 0,
       compare,
       vehicles,
       fleetEnabled: defaultOptions.interface ? !!defaultOptions.interface.enable_fleet : false,
@@ -24,6 +25,8 @@
     if(queryState){
       Object.assign(state, queryState);
     }
+
+    state.maxStep = Math.max(state.maxStep || 0, state.step || 0);
 
     while(state.vehicles.length < state.compare){
       state.vehicles.push(createVehicleFromPreset());
@@ -243,6 +246,8 @@
     }
     const state = el.__mbaState;
 
+    state.maxStep = Math.max(state.maxStep || 0, state.step || 0);
+
     el.setAttribute('data-loading', state.loading ? 'true' : 'false');
     el.innerHTML = '';
 
@@ -262,11 +267,19 @@
       stepEl.className = 'mba-tco__step';
       stepEl.textContent = step.label;
       stepEl.setAttribute('aria-current', state.step === index ? 'step' : 'false');
-      stepEl.setAttribute('tabindex', '0');
-      stepEl.addEventListener('click', () => {
-        state.step = index;
-        renderCalculator(el);
-      });
+      const isUnlocked = index <= state.maxStep;
+      stepEl.disabled = !isUnlocked;
+      stepEl.setAttribute('tabindex', isUnlocked ? '0' : '-1');
+      if(!isUnlocked){
+        stepEl.classList.add('mba-tco__step--disabled');
+      }
+      if(isUnlocked){
+        stepEl.addEventListener('click', () => {
+          state.step = index;
+          state.maxStep = Math.max(state.maxStep || 0, state.step || 0);
+          renderCalculator(el);
+        });
+      }
       stepsEl.appendChild(stepEl);
     });
     el.appendChild(stepsEl);
@@ -344,6 +357,7 @@
     prevBtn.disabled = state.step === 0;
     prevBtn.addEventListener('click', () => {
       state.step = Math.max(0, state.step - 1);
+      state.maxStep = Math.max(state.maxStep || 0, state.step || 0);
       renderCalculator(el);
     });
 
@@ -356,6 +370,7 @@
         calculate(el);
       }else{
         state.step = Math.min(Steps.length - 1, state.step + 1);
+        state.maxStep = Math.max(state.maxStep || 0, state.step || 0);
         if(window.dataLayer){ window.dataLayer.push({ event: 'tco_step', step: state.step }); }
         renderCalculator(el);
       }
@@ -409,7 +424,8 @@
     const header = `<header><h3>${vehicle.label || ('Véhicule ' + (index+1))}</h3><p>${opts.i18nMode || 'Mode'}: ${mode.toUpperCase()}</p></header>`;
     const buttons = types.map(type => {
       const active = vehicle.type === type.value;
-      return `<button type="button" class="mba-tco__button ${active ? '' : 'mba-tco__button--ghost'}" data-action="set-type" data-value="${type.value}" aria-pressed="${active}">${type.label}</button>`;
+      const disabled = !!vehicle.id && !active;
+      return `<button type="button" class="mba-tco__button ${active ? '' : 'mba-tco__button--ghost'}" data-action="set-type" data-value="${type.value}" aria-pressed="${active}" ${disabled ? 'disabled' : ''}>${type.label}</button>`;
     }).join('');
     const presetSelect = renderPresetSelect(vehicle, index, state);
     const helper = renderStepHelper('i18nTypeHelper', opts.i18nChooseType || 'Choisissez le type de motorisation.');
@@ -421,11 +437,11 @@
     if(!list.length){
       return '';
     }
-    const options = ['<option value="">' + (opts.i18nChoosePreset || 'Choisir un preset') + '</option>'];
+    const options = ['<option value="">' + (opts.i18nChoosePreset || 'Choisir un modèle préconfiguré') + '</option>'];
     list.forEach(item => {
       options.push(`<option value="${item.id}" ${vehicle.id === item.id ? 'selected' : ''}>${item.label}</option>`);
     });
-    return `<div class="mba-tco__field"><label class="mba-tco__label" for="mba-tco-preset-${index}">${buildLabel(opts.i18nPreset || 'Preset')}</label><select id="mba-tco-preset-${index}" data-action="preset" data-index="${index}">${options.join('')}</select></div>`;
+    return `<div class="mba-tco__field"><label class="mba-tco__label" for="mba-tco-preset-${index}">${buildLabel(opts.i18nPreset || 'Modèle préconfiguré')}</label><select id="mba-tco-preset-${index}" data-action="preset" data-index="${index}">${options.join('')}</select></div>`;
   }
 
   function renderAcquisitionStep(vehicle){
@@ -830,6 +846,10 @@
     const vehicle = state.vehicles[index];
     if(btn.dataset.action === 'set-type'){
       vehicle.type = btn.dataset.value;
+      if(vehicle.id){
+        vehicle.id = '';
+        vehicle.label = '';
+      }
       renderCalculator(container);
     }
   });
